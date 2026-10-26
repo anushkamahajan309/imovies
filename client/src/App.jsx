@@ -183,6 +183,51 @@ export default function App() {
     setBookings(local.filter(b => b.userEmail === user.email));
   };
 
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    const demoPayload = { email: 'anushkamahajan309@gmail.com', password: 'password123' };
+    try {
+      let res;
+      try {
+        res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(demoPayload),
+        });
+      } catch {
+        res = await fetch(`http://localhost:5000/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(demoPayload),
+        });
+      }
+
+      if (res && res.ok) {
+        const data = await res.json();
+        localStorage.setItem('imovies_user', JSON.stringify(data.user));
+        if (data.token) localStorage.setItem('imovies_token', data.token);
+        setUser(data.user);
+        setShowAuthModal(false);
+        setIsBackendOnline(true);
+        showAlert(`Welcome ${data.user.name || 'Anushka'}!`, 'success');
+        setLoading(false);
+        return;
+      }
+    } catch {}
+
+    // Instant offline fallback
+    const mockUser = {
+      id: 'usr_anushka',
+      name: 'Anushka Mahajan',
+      email: 'anushkamahajan309@gmail.com'
+    };
+    localStorage.setItem('imovies_user', JSON.stringify(mockUser));
+    setUser(mockUser);
+    setShowAuthModal(false);
+    showAlert('Welcome Anushka Mahajan! (1-Click Login)', 'success');
+    setLoading(false);
+  };
+
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -718,7 +763,7 @@ export default function App() {
 
       {/* Auth Modal (Login / Register) */}
       {showAuthModal && (
-        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(5px)' }}>
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}>
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content bg-dark text-white border-secondary shadow-lg">
               <div className="modal-header border-secondary">
@@ -729,13 +774,52 @@ export default function App() {
                 <button type="button" className="btn-close btn-close-white" onClick={() => setShowAuthModal(false)}></button>
               </div>
               <div className="modal-body p-4">
+                {/* 1-Click Instant Demo Login Banner */}
+                <div className="mb-4 p-3 rounded border border-danger border-opacity-50 text-center" style={{ background: 'rgba(229, 9, 20, 0.08)' }}>
+                  <p className="small text-light mb-2 fw-semibold">
+                    <i className="bi bi-lightning-charge-fill text-warning me-1"></i> Quick Mentor & Reviewer Access
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm w-100 fw-bold py-2 shadow-sm"
+                    onClick={handleDemoLogin}
+                    disabled={loading}
+                  >
+                    <i className="bi bi-person-check-fill me-2"></i> Instant 1-Click Login (Anushka Mahajan)
+                  </button>
+                </div>
+
+                <div className="d-flex align-items-center mb-3">
+                  <hr className="flex-grow-1 border-secondary m-0" />
+                  <span className="px-3 text-secondary small text-uppercase">Or with your email</span>
+                  <hr className="flex-grow-1 border-secondary m-0" />
+                </div>
+
+                {/* Tabs to toggle between Sign In and Sign Up */}
+                <div className="btn-group w-100 mb-3" role="group">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${authForm.isLogin ? 'btn-light fw-bold text-dark' : 'btn-outline-secondary text-secondary'}`}
+                    onClick={() => setAuthForm({ ...authForm, isLogin: true })}
+                  >
+                    <i className="bi bi-box-arrow-in-right me-1"></i> Sign In
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${!authForm.isLogin ? 'btn-light fw-bold text-dark' : 'btn-outline-secondary text-secondary'}`}
+                    onClick={() => setAuthForm({ ...authForm, isLogin: false })}
+                  >
+                    <i className="bi bi-person-plus me-1"></i> Create New Account
+                  </button>
+                </div>
+
                 <form onSubmit={handleAuth}>
                   {!authForm.isLogin && (
                     <div className="mb-3">
-                      <label className="form-label text-secondary small">Full Name</label>
+                      <label className="form-label text-secondary small">Your Full Name</label>
                       <input
                         className="form-control bg-secondary bg-opacity-25 text-light border-secondary"
-                        placeholder="John Doe"
+                        placeholder="e.g. Anushka Mahajan"
                         required
                         value={authForm.name}
                         onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
@@ -765,7 +849,13 @@ export default function App() {
                     />
                   </div>
                   <button type="submit" className="btn btn-danger w-100 py-2 fw-semibold" disabled={loading}>
-                    {loading ? 'Please wait...' : authForm.isLogin ? 'Sign In' : 'Create Account'}
+                    {loading ? (
+                      <span><span className="spinner-border spinner-border-sm me-2"></span>Please wait...</span>
+                    ) : authForm.isLogin ? (
+                      <span><i className="bi bi-box-arrow-in-right me-2"></i>Sign In</span>
+                    ) : (
+                      <span><i className="bi bi-person-check me-2"></i>Create Account</span>
+                    )}
                   </button>
                 </form>
 
@@ -774,7 +864,7 @@ export default function App() {
                     className="btn btn-link text-secondary text-decoration-none small"
                     onClick={() => setAuthForm({ ...authForm, isLogin: !authForm.isLogin })}
                   >
-                    {authForm.isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+                    {authForm.isLogin ? "Need a new account? Click here to Sign Up" : "Already have an account? Click to Sign In"}
                   </button>
                 </div>
               </div>
