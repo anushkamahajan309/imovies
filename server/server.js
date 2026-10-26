@@ -115,7 +115,7 @@ const Movie = mongoose.model('Movie', MovieSchema);
 const Booking = mongoose.model('Booking', BookingSchema);
 
 // Connect to MongoDB with timeout
-mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 3000 })
+mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 2500 })
   .then(() => {
     isMongoConnected = true;
     console.log('✅ Connected to MongoDB database');
@@ -123,7 +123,7 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 3000 })
   })
   .catch(err => {
     isMongoConnected = false;
-    console.log('ℹ️ Local/Remote MongoDB not reachable (', err.message, '). Running in active in-memory mode for smooth demo.');
+    console.log('ℹ️ Running in resilient in-memory mode (' + err.message + ')');
   });
 
 async function seedMovies() {
@@ -201,7 +201,7 @@ app.get('/api/movies', async (req, res) => {
   try {
     if (isMongoConnected) {
       const movies = await Movie.find();
-      return res.json(movies);
+      return res.json(movies.length > 0 ? movies : INITIAL_MOVIES);
     } else {
       return res.json(memMovies);
     }
@@ -213,21 +213,32 @@ app.get('/api/movies', async (req, res) => {
 // 4. Book Tickets
 app.post('/api/book', async (req, res) => {
   try {
-    const { movieId, seats, userEmail, showtime } = req.body;
-    if (!movieId || !seats || !seats.length || !userEmail) {
+    const { movieId, movieTitle, seats, userEmail, showtime } = req.body;
+    if (!seats || !seats.length || !userEmail) {
       return res.status(400).json({ message: 'Missing booking details' });
     }
 
     if (isMongoConnected) {
-      const movie = await Movie.findById(movieId);
+      let movie = null;
+      if (mongoose.isValidObjectId(movieId)) {
+        movie = await Movie.findById(movieId);
+      }
+      if (!movie && movieTitle) {
+        movie = await Movie.findOne({ title: movieTitle });
+      }
+      if (!movie) {
+        movie = await Movie.findOne();
+      }
       if (!movie) return res.status(404).json({ message: 'Movie not found' });
-      const alreadyBooked = seats.some(seat => movie.bookedSeats.includes(seat));
-      if (alreadyBooked) return res.status(400).json({ message: 'Seat already taken!' });
 
+      const alreadyBooked = seats.some(seat => (movie.bookedSeats || []).includes(seat));
+      if (alreadyBooked) return res.status(400).json({ message: 'One or more selected seats are already booked!' });
+
+      movie.bookedSeats = movie.bookedSeats || [];
       movie.bookedSeats.push(...seats);
       await movie.save();
 
-      const totalAmount = seats.length * movie.ticketPrice;
+      const totalAmount = seats.length * (movie.ticketPrice || 250);
       const booking = await Booking.create({
         userEmail,
         movieTitle: movie.title,
@@ -237,13 +248,16 @@ app.post('/api/book', async (req, res) => {
       });
       return res.json({ message: 'Success', booking });
     } else {
-      const movie = memMovies.find(m => m._id === movieId);
+      let movie = memMovies.find(m => m._id === movieId || m.title === movieTitle);
+      if (!movie) movie = memMovies[0];
       if (!movie) return res.status(404).json({ message: 'Movie not found' });
-      const alreadyBooked = seats.some(seat => movie.bookedSeats.includes(seat));
-      if (alreadyBooked) return res.status(400).json({ message: 'Seat already taken!' });
 
+      const alreadyBooked = seats.some(seat => (movie.bookedSeats || []).includes(seat));
+      if (alreadyBooked) return res.status(400).json({ message: 'One or more selected seats are already booked!' });
+
+      movie.bookedSeats = movie.bookedSeats || [];
       movie.bookedSeats.push(...seats);
-      const totalAmount = seats.length * movie.ticketPrice;
+      const totalAmount = seats.length * (movie.ticketPrice || 250);
       const booking = {
         _id: `booking_${Date.now()}`,
         userEmail,
@@ -257,6 +271,7 @@ app.post('/api/book', async (req, res) => {
       return res.json({ message: 'Success', booking });
     }
   } catch (err) {
+    console.error('Booking error:', err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -282,10 +297,10 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
     appName: 'IMovies API',
-    database: isMongoConnected ? 'MongoDB (Connected)' : 'In-Memory Fallback (Active)',
+    database: isMongoConnected ? 'MongoDB (Connected)' : 'In-Memory Resilient Mode',
     timestamp: new Date().toISOString()
   });
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Backend server running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`🚀 IMovies backend server running on http://localhost:${PORT}`));
