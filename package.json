@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "IMovies - Movie ticket booking made simple. A full-stack MERN platform with seat reservation tracking.",
   "scripts": {
+    "start": "node start.js",
+    "dev": "node start.js",
     "server": "cd server && npm start",
     "client": "cd client && npm run dev",
     "build": "cd client && npm run build"
