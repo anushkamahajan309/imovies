@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const API_BASE = '/api';
+const API_BASE = 'http://localhost:5000/api';
 
 const DEFAULT_MOVIES = [
   {
@@ -92,7 +92,7 @@ export default function App() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState('movies'); // 'movies' or 'bookings'
+  const [activeTab, setActiveTab] = useState('movies');
   const [bookings, setBookings] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('imovies_local_bookings')) || [];
@@ -104,7 +104,6 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('All');
 
-  // Auth modal
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '', isLogin: true });
   const [alertInfo, setAlertInfo] = useState(null);
@@ -112,7 +111,7 @@ export default function App() {
 
   const showAlert = (message, type = 'info') => {
     setAlertInfo({ message, type });
-    setTimeout(() => setAlertInfo(null), 4000);
+    setTimeout(() => setAlertInfo(null), 4500);
   };
 
   useEffect(() => {
@@ -127,13 +126,7 @@ export default function App() {
 
   const fetchMovies = async () => {
     try {
-      // Try relative API (via Vite proxy)
-      let res = await fetch(`${API_BASE}/movies`);
-      if (!res.ok) {
-        // Fallback to direct port 5000 if proxy not available
-        res = await fetch('http://localhost:5000/api/movies');
-      }
-
+      const res = await fetch(`${API_BASE}/movies`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -142,33 +135,15 @@ export default function App() {
           return;
         }
       }
-      setIsBackendOnline(false);
     } catch {
-      // If server is not responding, fallback to direct port 5000 attempt
-      try {
-        const directRes = await fetch('http://localhost:5000/api/movies');
-        if (directRes.ok) {
-          const directData = await directRes.json();
-          if (Array.isArray(directData) && directData.length > 0) {
-            setMovies(directData);
-            setIsBackendOnline(true);
-            return;
-          }
-        }
-      } catch {
-        // Server completely offline, stay on DEFAULT_MOVIES
-        setIsBackendOnline(false);
-      }
+      setIsBackendOnline(false);
     }
   };
 
   const fetchUserBookings = async () => {
     if (!user) return;
     try {
-      let res = await fetch(`${API_BASE}/bookings/${encodeURIComponent(user.email)}`);
-      if (!res.ok) {
-        res = await fetch(`http://localhost:5000/api/bookings/${encodeURIComponent(user.email)}`);
-      }
+      const res = await fetch(`${API_BASE}/bookings/${encodeURIComponent(user.email)}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -177,7 +152,7 @@ export default function App() {
         }
       }
     } catch {
-      // Offline fallback
+      // Local fallback
     }
     const local = JSON.parse(localStorage.getItem('imovies_local_bookings') || '[]');
     setBookings(local.filter(b => b.userEmail === user.email));
@@ -187,35 +162,27 @@ export default function App() {
     setLoading(true);
     const demoPayload = { email: 'anushkamahajan309@gmail.com', password: 'password123' };
     try {
-      let res;
-      try {
-        res = await fetch(`${API_BASE}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(demoPayload),
-        });
-      } catch {
-        res = await fetch(`http://localhost:5000/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(demoPayload),
-        });
-      }
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(demoPayload),
+      });
 
-      if (res && res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.user) {
         localStorage.setItem('imovies_user', JSON.stringify(data.user));
         if (data.token) localStorage.setItem('imovies_token', data.token);
         setUser(data.user);
         setShowAuthModal(false);
         setIsBackendOnline(true);
-        showAlert(`Welcome ${data.user.name || 'Anushka'}!`, 'success');
+        showAlert(`Welcome ${data.user.name || 'Anushka Mahajan'}!`, 'success');
         setLoading(false);
         return;
       }
-    } catch {}
+    } catch (e) {
+      console.log('Using instant local demo sign in');
+    }
 
-    // Instant offline fallback
     const mockUser = {
       id: 'usr_anushka',
       name: 'Anushka Mahajan',
@@ -234,23 +201,15 @@ export default function App() {
     const endpoint = authForm.isLogin ? '/auth/login' : '/auth/register';
 
     try {
-      let res;
-      try {
-        res = await fetch(`${API_BASE}${endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(authForm),
-        });
-      } catch {
-        res = await fetch(`http://localhost:5000/api${endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(authForm),
-        });
-      }
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(authForm),
+      });
 
       const data = await res.json().catch(() => ({}));
-      if (res.ok) {
+
+      if (res.ok && data.user) {
         localStorage.setItem('imovies_user', JSON.stringify(data.user));
         if (data.token) localStorage.setItem('imovies_token', data.token);
         setUser(data.user);
@@ -258,13 +217,16 @@ export default function App() {
         setIsBackendOnline(true);
         showAlert(`Welcome ${data.user.name || data.user.email}!`, 'success');
         setAuthForm({ name: '', email: '', password: '', isLogin: true });
+        setLoading(false);
         return;
       } else {
+        // Fallback: If login failed with error message, auto-create local session or show message
         showAlert(data.message || 'Authentication failed. Please check credentials.', 'danger');
+        setLoading(false);
         return;
       }
-    } catch {
-      // Server is unreachable, log in offline demo session
+    } catch (err) {
+      // Backend offline: log in with offline session
       const mockUser = {
         id: `usr_${Date.now()}`,
         name: authForm.name || authForm.email.split('@')[0],
@@ -273,7 +235,7 @@ export default function App() {
       localStorage.setItem('imovies_user', JSON.stringify(mockUser));
       setUser(mockUser);
       setShowAuthModal(false);
-      showAlert(`Welcome ${mockUser.name}! (Demo Mode)`, 'success');
+      showAlert(`Welcome ${mockUser.name}! (Offline Session)`, 'success');
       setAuthForm({ name: '', email: '', password: '', isLogin: true });
     } finally {
       setLoading(false);
@@ -317,44 +279,27 @@ export default function App() {
     setLoading(true);
 
     try {
-      let res;
-      try {
-        res = await fetch(`${API_BASE}/book`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            movieId: selectedMovie._id,
-            movieTitle: selectedMovie.title,
-            seats: selectedSeats,
-            userEmail: user.email,
-            showtime: selectedShowtime
-          }),
-        });
-      } catch {
-        res = await fetch(`http://localhost:5000/api/book`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            movieId: selectedMovie._id,
-            movieTitle: selectedMovie.title,
-            seats: selectedSeats,
-            userEmail: user.email,
-            showtime: selectedShowtime
-          }),
-        });
-      }
+      const res = await fetch(`${API_BASE}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          movieId: selectedMovie._id,
+          movieTitle: selectedMovie.title,
+          seats: selectedSeats,
+          userEmail: user.email,
+          showtime: selectedShowtime
+        }),
+      });
 
-      if (res && res.ok) {
-        setIsBackendOnline(true);
-        fetchMovies();
-      } else if (res && !res.ok) {
+      if (res && !res.ok) {
         const errData = await res.json().catch(() => ({}));
         showAlert(errData.message || 'Seat reservation failed.', 'danger');
         setLoading(false);
         return;
       }
+      setIsBackendOnline(true);
     } catch {
-      // Backend offline: proceed with instant local reservation
+      // Offline booking
     }
 
     // Update seat map
@@ -385,7 +330,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // Filter movies
   const genres = ['All', ...new Set(movies.flatMap(m => m.genre ? m.genre.split(' / ') : []))];
   const filteredMovies = movies.filter(m => {
     const matchesSearch = m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
