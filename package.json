@@ -1,0 +1,20 @@
+{
+  "name": "imovies-movie-ticket-booking",
+  "version": "1.0.0",
+  "description": "IMovies - Movie ticket booking made simple. A full-stack MERN platform with seat reservation tracking.",
+  "scripts": {
+    "server": "cd server && npm start",
+    "client": "cd client && npm run dev",
+    "build": "cd client && npm run build"
+  },
+  "keywords": [
+    "react",
+    "express",
+    "mongodb",
+    "jwt",
+    "movie-booking",
+    "ticket-reservation"
+  ],
+  "author": "Anushka Mahajan",
+  "license": "ISC"
+}
